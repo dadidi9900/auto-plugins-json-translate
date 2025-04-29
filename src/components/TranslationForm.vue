@@ -101,7 +101,7 @@
             <el-button
               type="primary"
               @click="startTranslation"
-              :disabled="!canStart"
+              :disabled="!canStart || isTranslating"
               class="start-button"
             >
               开始翻译
@@ -131,18 +131,16 @@
             <div class="translation-progress" v-if="isTranslating">
               <el-progress
                 :percentage="(completedBlocks / totalBlocks) * 100"
-                :format="(format: number) => `正在翻译第 ${currentBlockIndex + 1}/${totalBlocks} 部分`"
+                :format="(format: number) => `正在翻译第 ${Math.min(currentBlockIndex + 1, totalBlocks)}/${totalBlocks} 部分`"
               />
               <div class="progress-info">
                 <span>已完成: {{ completedBlocks }}/{{ totalBlocks }}</span>
-                <el-button
-                  type="primary"
-                  size="small"
-                  @click="handleMergeAndCleanup"
-                  :disabled="completedBlocks < totalBlocks"
-                >
-                  合并翻译结果
-                </el-button>
+              </div>
+              <div
+                class="progress-tip"
+                style="margin-top: 8px; color: #999; font-size: 13px"
+              >
+                为避免API限制，文件会被拆分分块翻译，所有区块翻译完成后将自动合并。
               </div>
             </div>
           </div>
@@ -161,7 +159,7 @@
               @click="mergeTranslations"
               class="merge-button"
             >
-              合并结果
+              合并最终JSON
             </el-button>
           </div>
           <pre
@@ -213,7 +211,7 @@
   >
     <div class="custom-dialog" @click.stop>
       <div class="dialog-header">
-        <h3>合并结果预览</h3>
+        <h3>合并最终JSON预览</h3>
         <el-button class="close-button" @click="showMergeDialog = false">
           <el-icon><close /></el-icon>
         </el-button>
@@ -282,9 +280,16 @@ const streamingCode = ref<HTMLElement | null>(null);
 // 从缓存中加载翻译结果
 const loadFromCache = (language: string): boolean => {
   if (!fileHash.value) return false;
-  const cachedData = localStorage.getItem(
-    `translation_cache_${fileHash.value}_${language}`
+  // 优先加载最终合并结果
+  let cachedData = localStorage.getItem(
+    `translation_cache_${fileHash.value}_${language}_final`
   );
+  if (!cachedData) {
+    // 没有最终合并结果再加载普通缓存
+    cachedData = localStorage.getItem(
+      `translation_cache_${fileHash.value}_${language}`
+    );
+  }
   if (cachedData) {
     try {
       translationCache.value[language] = JSON.parse(cachedData);
@@ -297,22 +302,6 @@ const loadFromCache = (language: string): boolean => {
     }
   }
   return false;
-};
-
-// 保存翻译结果到缓存
-const saveToCache = (language: string, content: Record<string, any>) => {
-  if (!fileHash.value) return;
-  try {
-    localStorage.setItem(
-      `translation_cache_${fileHash.value}_${language}`,
-      JSON.stringify(content)
-    );
-    // 更新已翻译语言集合
-    existingLanguages.value.add(language);
-    ElMessage.success(`${language} 的翻译结果已缓存`);
-  } catch (error) {
-    console.error("保存缓存失败:", error);
-  }
 };
 
 // 监听源语言变化，自动从目标语言中移除
@@ -428,6 +417,35 @@ const handleRemoveFile = (e: Event) => {
   existingLanguages.value.clear();
 };
 
+// 辅助函数：检查每个区块每个语言的翻译完整性
+const checkMissingBlocks = () => {
+  const missingBlocks: { blockIndex: number; lang: string }[] = [];
+  for (let i = 0; i < blocks.value.length; i++) {
+    const block = blocks.value[i];
+    for (const lang of form.value.languages) {
+      const blockId = `block_${i + 1}`;
+      const cacheKey = `translation_cache_${fileHash.value}_${lang}_${blockId}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (!cached) {
+        missingBlocks.push({ blockIndex: i, lang });
+      } else {
+        // 检查内容是否完整（key数量是否一致）
+        try {
+          const parsed = JSON.parse(cached);
+          const blockKeys = Object.keys(block.content);
+          const parsedKeys = Object.keys(parsed);
+          if (blockKeys.length !== parsedKeys.length) {
+            missingBlocks.push({ blockIndex: i, lang });
+          }
+        } catch {
+          missingBlocks.push({ blockIndex: i, lang });
+        }
+      }
+    }
+  }
+  return missingBlocks;
+};
+
 const startTranslation = async () => {
   if (!canStart.value) return;
 
@@ -437,47 +455,99 @@ const startTranslation = async () => {
   streamingContent.value = {};
   mergedResult.value = null;
 
+  // 检查缺失区块
+  const missingBlocks = checkMissingBlocks();
+  const totalBlocksCount = blocks.value.length * form.value.languages.length;
+  if (missingBlocks.length > 0) {
+    // 如果所有区块都缺失，直接全部翻译
+    if (missingBlocks.length === totalBlocksCount) {
+      // 跳过弹窗，直接全部翻译
+    } else {
+      // 生成提示内容
+      const blockLangMap: Record<number, string[]> = {};
+      missingBlocks.forEach(({ blockIndex, lang }) => {
+        if (!blockLangMap[blockIndex]) blockLangMap[blockIndex] = [];
+        blockLangMap[blockIndex].push(lang);
+      });
+      const msg = Object.entries(blockLangMap)
+        .map(([idx, langs]) => `第${Number(idx) + 1}块：${langs.join("、")}`)
+        .join("<br>");
+      try {
+        await ElMessageBox({
+          title: "检测到以下区块翻译缺失",
+          message: msg + "<br>是否只重新翻译这些区块？",
+          dangerouslyUseHTMLString: true,
+          confirmButtonText: "重新翻译缺失区块",
+          cancelButtonText: "取消",
+          type: "warning",
+        });
+        // 用户点击"重新翻译缺失区块"，只翻译这些区块
+      } catch {
+        // 用户取消
+        isTranslating.value = false;
+        return;
+      }
+    }
+  } else {
+    // 没有缺失，直接自动合并
+    await handleMergeAndCleanup();
+    isTranslating.value = false;
+    ElMessage.success("所有区块已翻译，无需重复翻译！");
+    return;
+  }
+
   const service = new TranslationService(form.value.apiKey);
 
-  while (currentBlockIndex.value < blocks.value.length) {
-    const block = blocks.value[currentBlockIndex.value];
-
-    for (const language of form.value.languages) {
-      streamingContent.value[language] = {};
-      const result = await service.translateBlock(
-        block,
-        language,
-        (content) => {
-          try {
-            const parsedContent = JSON.parse(content);
-            streamingContent.value[language] = parsedContent;
-          } catch (e) {
-            streamingContent.value[language] = content;
-          }
+  // 翻译逻辑
+  for (let i = 0; i < blocks.value.length; i++) {
+    const block = blocks.value[i];
+    let blockHasMissing = false;
+    if (missingBlocks.length === totalBlocksCount) {
+      blockHasMissing = true; // 全部翻译
+    } else {
+      for (const lang of form.value.languages) {
+        if (missingBlocks.find((b) => b.blockIndex === i && b.lang === lang)) {
+          blockHasMissing = true;
+          break;
         }
-      );
-
+      }
+    }
+    if (!blockHasMissing) {
+      completedBlocks.value++;
+      continue;
+    }
+    for (const lang of form.value.languages) {
+      if (
+        missingBlocks.length !== totalBlocksCount &&
+        !missingBlocks.find((b) => b.blockIndex === i && b.lang === lang)
+      )
+        continue;
+      const blockId = `block_${i + 1}`;
+      const cacheKey = `translation_cache_${fileHash.value}_${lang}_${blockId}`;
+      streamingContent.value[lang] = {};
+      const result = await service.translateBlock(block, lang, (content) => {
+        try {
+          const parsedContent = JSON.parse(content);
+          streamingContent.value[lang] = parsedContent;
+        } catch (e) {
+          streamingContent.value[lang] = content;
+        }
+      });
       if (result.status === "success") {
         block.content = { ...block.content, ...result.translations };
-        completedBlocks.value++;
-
-        // 为每个块单独保存缓存
-        const blockId = `block_${currentBlockIndex.value + 1}`;
-        const cacheKey = `translation_cache_${fileHash.value}_${language}_${blockId}`;
         localStorage.setItem(cacheKey, JSON.stringify(result.translations));
-
-        // 更新翻译内容
-        translatedContent.value[language] = {
-          ...translatedContent.value[language],
+        translatedContent.value[lang] = {
+          ...translatedContent.value[lang],
           ...result.translations,
         };
       } else {
         ElMessage.error(`翻译失败: ${result.error}`);
       }
     }
-
-    currentBlockIndex.value++;
+    completedBlocks.value++;
   }
+  // 所有区块翻译完成后自动合并
+  await handleMergeAndCleanup();
 };
 
 const mergeTranslations = () => {

@@ -2,12 +2,10 @@
   <div class="language-selector">
     <div class="language-selector-header">
       <div class="language-actions">
-        <el-button type="info" size="small" @click="clearAll">
-          清空
-        </el-button>
+        <el-button type="info" size="small" @click="clearAll"> 清空 </el-button>
       </div>
     </div>
-    
+
     <div class="language-grid">
       <div
         v-for="lang in displayLanguages"
@@ -15,18 +13,24 @@
         :class="[
           'language-item',
           {
-            'selected': modelValue.includes(lang.value),
-            'translated': props.existingLanguages.has(lang.value)
-          }
+            selected: modelValue.includes(lang.value),
+            translated: props.existingLanguages.has(lang.value),
+          },
         ]"
         @click="toggleLanguage(lang.value)"
       >
         {{ lang.label }}
-        <el-tag v-if="props.existingLanguages.has(lang.value)" size="small" type="warning" class="translated-tag">已翻译</el-tag>
+        <el-tag
+          v-if="props.existingLanguages.has(lang.value)"
+          size="small"
+          type="warning"
+          class="translated-tag"
+          >已翻译</el-tag
+        >
       </div>
-      
+
       <div class="show-more" @click="toggleShowAll">
-        {{ showAll ? '收起语言' : '显示更多语言' }}
+        {{ showAll ? "收起语言" : "显示更多语言" }}
         <el-icon class="show-more-icon" :class="{ 'is-reverse': showAll }">
           <arrow-down />
         </el-icon>
@@ -36,123 +40,132 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, watch } from "vue";
+import { ArrowDown } from "@element-plus/icons-vue";
 
 interface Language {
-  value: string
-  label: string
+  value: string;
+  label: string;
 }
 
 interface Props {
-  modelValue: string[]
-  sourceLanguage?: string
-  existingLanguages?: Set<string>
+  modelValue: string[];
+  sourceLanguage?: string;
+  existingLanguages?: Set<string>;
 }
 
 interface Emits {
-  (e: 'update:modelValue', value: string[]): void
+  (e: "update:modelValue", value: string[]): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  sourceLanguage: '',
-  existingLanguages: () => new Set()
-})
+  sourceLanguage: "",
+  existingLanguages: () => new Set(),
+});
 
-const emit = defineEmits<Emits>()
+const emit = defineEmits<Emits>();
 
-const showAll = ref(false)
+const showAll = ref(false);
 
 const allLanguages: Language[] = [
-  { value: 'en', label: '英语' },
-  { value: 'ru', label: '俄语' },
-  { value: 'es', label: '西班牙语' },
-  { value: 'de', label: '德语' },
-  { value: 'tr', label: '土耳其语' },
-  { value: 'fr', label: '法语' },
-  { value: 'ja', label: '日语' },
-  { value: 'pt', label: '葡萄牙语' },
-  { value: 'zh-CN', label: '简体中文' },
-  { value: 'zh-TW', label: '繁体中文' },
-  { value: 'it', label: '意大利语' },
-  { value: 'ar', label: '阿拉伯语' },
-  { value: 'pl', label: '波兰语' },
-  { value: 'el', label: '希腊语' },
-  { value: 'nl', label: '荷兰语' },
-  { value: 'id', label: '印尼语' },
-  { value: 'ko', label: '韩语' },
-  { value: 'th', label: '泰语' },
-  { value: 'vi', label: '越南语' },
-  { value: 'cs', label: '捷克语' },
-  { value: 'hu', label: '匈牙利语' },
-  { value: 'ro', label: '罗马尼亚语' },
-  { value: 'sv', label: '瑞典语' },
-  { value: 'da', label: '丹麦语' },
-  { value: 'fi', label: '芬兰语' },
-  { value: 'no', label: '挪威语' },
-  { value: 'uk', label: '乌克兰语' },
-  { value: 'he', label: '希伯来语' },
-  { value: 'hi', label: '印地语' },
-  { value: 'bn', label: '孟加拉语' },
-  { value: 'mr', label: '马拉地语' },
-  { value: 'ta', label: '泰米尔语' },
-  { value: 'ur', label: '乌尔都语' },
-  { value: 'fa', label: '波斯语' },
-  { value: 'ms', label: '马来语' }
-]
+  { value: "en", label: "英语" },
+  { value: "ru", label: "俄语" },
+  { value: "es", label: "西班牙语" },
+  { value: "de", label: "德语" },
+  { value: "tr", label: "土耳其语" },
+  { value: "fr", label: "法语" },
+  { value: "ja", label: "日语" },
+  { value: "pt", label: "葡萄牙语" },
+  { value: "zh-CN", label: "简体中文" },
+  { value: "zh-TW", label: "繁体中文" },
+  { value: "it", label: "意大利语" },
+  { value: "ar", label: "阿拉伯语" },
+  { value: "pl", label: "波兰语" },
+  { value: "el", label: "希腊语" },
+  { value: "nl", label: "荷兰语" },
+  { value: "id", label: "印尼语" },
+  { value: "ko", label: "韩语" },
+  { value: "th", label: "泰语" },
+  { value: "vi", label: "越南语" },
+  { value: "cs", label: "捷克语" },
+  { value: "hu", label: "匈牙利语" },
+  { value: "ro", label: "罗马尼亚语" },
+  { value: "sv", label: "瑞典语" },
+  { value: "da", label: "丹麦语" },
+  { value: "fi", label: "芬兰语" },
+  { value: "no", label: "挪威语" },
+  { value: "uk", label: "乌克兰语" },
+  { value: "he", label: "希伯来语" },
+  { value: "hi", label: "印地语" },
+  { value: "bn", label: "孟加拉语" },
+  { value: "mr", label: "马拉地语" },
+  { value: "ta", label: "泰米尔语" },
+  { value: "ur", label: "乌尔都语" },
+  { value: "fa", label: "波斯语" },
+  { value: "ms", label: "马来语" },
+];
 
-const availableLanguages = computed(() => 
-  allLanguages.filter(lang => 
-    lang.value !== props.sourceLanguage && 
-    lang.value.toLowerCase() !== props.sourceLanguage.toLowerCase()
+const availableLanguages = computed(() =>
+  allLanguages.filter(
+    (lang) =>
+      lang.value !== props.sourceLanguage &&
+      lang.value.toLowerCase() !== props.sourceLanguage.toLowerCase()
   )
-)
+);
 
 const displayLanguages = computed(() => {
   if (showAll.value) {
-    return availableLanguages.value
+    return availableLanguages.value;
   }
-  return availableLanguages.value.slice(0, 12)
-})
+  return availableLanguages.value.slice(0, 12);
+});
 
 const toggleShowAll = () => {
-  showAll.value = !showAll.value
-}
+  showAll.value = !showAll.value;
+};
 
 const initializeSelection = () => {
-  const allLangs = availableLanguages.value.map(lang => lang.value)
-  const initialSelection = allLangs.filter(lang => !props.existingLanguages.has(lang))
-  emit('update:modelValue', initialSelection)
-}
+  const allLangs = availableLanguages.value.map((lang) => lang.value);
+  const initialSelection = allLangs.filter(
+    (lang) => !props.existingLanguages.has(lang)
+  );
+  emit("update:modelValue", initialSelection);
+};
 
 onMounted(() => {
-  initializeSelection()
-})
+  initializeSelection();
+});
 
-watch(() => props.existingLanguages, (newExistingLanguages) => {
-  const currentSelection = [...props.modelValue]
-  const newSelection = currentSelection.filter(lang => !newExistingLanguages.has(lang))
-  emit('update:modelValue', newSelection)
-}, { deep: true })
+watch(
+  () => props.existingLanguages,
+  (newExistingLanguages) => {
+    const currentSelection = [...props.modelValue];
+    const newSelection = currentSelection.filter(
+      (lang) => !newExistingLanguages.has(lang)
+    );
+    emit("update:modelValue", newSelection);
+  },
+  { deep: true }
+);
 
 const toggleLanguage = (value: string) => {
-  if (value === props.sourceLanguage) return
-  
-  const newValue = [...props.modelValue]
-  const index = newValue.indexOf(value)
-  
+  if (value === props.sourceLanguage) return;
+
+  const newValue = [...props.modelValue];
+  const index = newValue.indexOf(value);
+
   if (index === -1) {
-    newValue.push(value)
+    newValue.push(value);
   } else {
-    newValue.splice(index, 1)
+    newValue.splice(index, 1);
   }
-  
-  emit('update:modelValue', newValue)
-}
+
+  emit("update:modelValue", newValue);
+};
 
 const clearAll = () => {
-  emit('update:modelValue', [])
-}
+  emit("update:modelValue", []);
+};
 </script>
 
 <style scoped>
@@ -260,4 +273,4 @@ const clearAll = () => {
 .show-more-icon.is-reverse {
   transform: rotate(180deg);
 }
-</style> 
+</style>
